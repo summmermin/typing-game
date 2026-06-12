@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>ACID RAIN</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(180deg, #1a1a40 0%, #2d2d6e 50%, #3a3a8e 100%);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  height: 100vh;
+}
+#game {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 80px);
+  overflow: hidden;
+}
+#input-area {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  height: 80px;
+  background: rgba(30,30,80,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  border-top: 2px solid #6666cc;
+}
+#input-area input {
+  width: 400px;
+  padding: 12px 20px;
+  font-size: 24px;
+  font-family: 'Courier New', monospace;
+  background: rgba(20,20,60,0.8);
+  color: #0f0;
+  border: 2px solid #6666cc;
+  border-radius: 8px;
+  outline: none;
+  text-align: center;
+}
+#input-area input:focus { border-color: #00ff00; }
+.word {
+  position: absolute;
+  font-size: 22px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(150,150,255,0.8), 0 0 3px rgba(255,255,255,0.4);
+  transition: color 0.1s;
+  white-space: nowrap;
+}
+.word.highlight {
+  color: #0f0;
+  text-shadow: 0 0 12px rgba(0,255,0,0.8);
+}
+#hud {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  height: 50px;
+  background: rgba(30,30,80,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  font-size: 18px;
+  border-bottom: 2px solid #6666cc;
+  z-index: 10;
+}
+.hud-item { display: flex; gap: 8px; align-items: center; }
+.hud-label { color: #888; }
+.hud-value { color: #0f0; font-weight: bold; }
+#deadline {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: #ff0000;
+  box-shadow: 0 0 10px #ff0000;
+}
+#start-screen, #gameover-screen {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(25,25,70,0.97);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  overflow-y: auto;
+}
+#start-screen h1, #gameover-screen h1 {
+  font-size: 52px;
+  margin-bottom: 10px;
+  text-shadow: 0 0 20px;
+}
+#start-screen p, #gameover-screen p {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: #aaa;
+}
+.diff-buttons { display: flex; gap: 15px; margin-top: 30px; }
+.btn {
+  padding: 14px 36px;
+  font-size: 20px;
+  font-family: 'Courier New', monospace;
+  background: #222;
+  color: #0f0;
+  border: 2px solid #0f0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+.btn:hover { background: #0f0; color: #0a0a2e; }
+.btn-primary { background: #0f0; color: #0a0a2e; }
+.btn-primary:hover { background: #0c0; }
+.diff-desc {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+  text-align: center;
+}
+.stat { font-size: 28px; color: #0f0; margin: 5px 0; }
+#combo-display {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  font-size: 36px;
+  color: #ff0;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity 0.3s;
+  text-shadow: 0 0 15px rgba(255,255,0,0.7);
+  z-index: 10;
+}
+#level-up-display {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 48px;
+  color: #0ff;
+  font-weight: bold;
+  opacity: 0;
+  text-shadow: 0 0 20px rgba(0,255,255,0.8);
+  z-index: 10;
+  pointer-events: none;
+}
+.result-emoji {
+  font-size: 120px;
+  margin: 15px 0;
+  animation: bounce 0.6s ease infinite alternate;
+}
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-15px); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px) rotate(-3deg); }
+  75% { transform: translateX(8px) rotate(3deg); }
+}
+.shake { animation: shake 0.4s ease infinite; }
+.progress-bar {
+  width: 200px;
+  height: 12px;
+  background: #333;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: #0ff;
+  transition: width 0.3s;
+}
+</style>
+</head>
+<body>
+
+<div id="start-screen">
+  <h1 style="color:#0f0">ACID RAIN</h1>
+  <p>위에서 떨어지는 단어를 타이핑하세요!</p>
+  <p style="color:#666;font-size:14px">단어를 입력하고 Enter 또는 Space를 누르면 제거됩니다</p>
+  <p style="color:#f44;font-size:14px;margin-top:5px">3번 놓치면 게임 오버! 30개 클리어하면 승리!</p>
+  <p style="color:#888;margin-top:20px;font-size:16px">난이도를 선택하세요</p>
+  <div class="diff-buttons">
+    <div style="text-align:center">
+      <button class="btn" onclick="startGame(0)">Lv.0</button>
+      <div class="diff-desc">느긋하게</div>
+    </div>
+    <div style="text-align:center">
+      <button class="btn" onclick="startGame(1)">Lv.1</button>
+      <div class="diff-desc">적당히</div>
+    </div>
+    <div style="text-align:center">
+      <button class="btn" onclick="startGame(2)">Lv.2</button>
+      <div class="diff-desc">미친 속도</div>
+    </div>
+  </div>
+</div>
+
+<div id="gameover-screen" style="display:none">
+  <div id="result-emoji" class="result-emoji"></div>
+  <h1 id="gameover-title">GAME OVER</h1>
+  <p id="gameover-msg" style="font-size:26px;margin:10px 0;font-weight:bold"></p>
+  <p id="gameover-sub" style="font-size:16px;color:#888;margin-bottom:15px"></p>
+  <p class="stat">Score: <span id="final-score">0</span></p>
+  <p class="stat">Max Combo: <span id="final-combo">0</span></p>
+  <p>맞춘 단어: <span id="final-correct">0</span> | 놓친 단어: <span id="final-missed">0</span></p>
+  <p style="margin-top:10px;color:#888">도달 레벨: <span id="final-level" style="color:#0ff">1</span></p>
+  <button class="btn btn-primary" style="margin-top:15px" onclick="location.reload()">다시 하기</button>
+</div>
+
+<div id="hud" style="display:none">
+  <div class="hud-item"><span class="hud-label">SCORE</span><span class="hud-value" id="score">0</span></div>
+  <div class="hud-item"><span class="hud-label">LEVEL</span><span class="hud-value" id="level" style="color:#0ff">1</span></div>
+  <div class="hud-item"><span class="hud-label">SPEED</span><span class="hud-value" id="speed-display">x1.0</span></div>
+  <div class="hud-item"><span class="hud-label">MISS</span><span class="hud-value" id="miss-display" style="color:#f44">0 / 3</span></div>
+  <div class="hud-item">
+    <span class="hud-label">CLEAR</span>
+    <span class="hud-value" id="clear-display">0/30</span>
+    <div class="progress-bar"><div class="progress-bar-fill" id="progress-bar"></div></div>
+  </div>
+  <div class="hud-item"><span class="hud-label">COMBO</span><span class="hud-value" id="combo">0</span></div>
+</div>
+
+<div id="game" style="display:none">
+  <div id="deadline"></div>
+</div>
+<div id="combo-display"></div>
+<div id="level-up-display">LEVEL UP!</div>
+
+<div id="input-area" style="display:none">
+  <input type="text" id="typing" placeholder="여기에 입력..." autocomplete="off" autofocus>
+</div>
+
+<script>
+const WORDS_KR = [
+  '사과','바나나','포도','딸기','수박','참외','복숭아','귤','키위','레몬',
+  '컴퓨터','프로그램','자바','코틀린','서버','데이터','네트워크','알고리즘',
+  '대한민국','서울','부산','제주도','한강','인천','대전','광주',
+  '가방','연필','지우개','공책','책상','의자','칠판','시계',
+  '강아지','고양이','토끼','거북이','코끼리','기린','사자','호랑이',
+  '피아노','기타','드럼','바이올린','플루트','첼로','하모니카',
+  '비행기','자동차','기차','버스','자전거','오토바이','헬리콥터',
+  '햄버거','피자','치킨','파스타','스테이크','초밥','라면','김밥',
+  '봄','여름','가을','겨울','태양','달','별','구름','바람','비','눈',
+  '행복','사랑','희망','용기','지혜','평화','자유','꿈','미래',
+  '학교','병원','도서관','공원','시장','은행','우체국','소방서',
+  '축구','야구','농구','배구','테니스','수영','달리기','태권도'
+];
+
+const WORDS_EN = [
+  'apple','banana','grape','cherry','mango','peach','lemon','melon',
+  'computer','program','server','network','database','system','browser',
+  'spring','kotlin','react','python','javascript','docker','github',
+  'hello','world','happy','dream','smile','music','dance','light',
+  'coffee','pizza','pasta','bread','cheese','butter','sugar','cream',
+  'mountain','river','ocean','island','forest','desert','valley',
+  'tiger','eagle','dolphin','rabbit','turtle','penguin','dragon',
+  'rocket','planet','galaxy','comet','nebula','orbit','cosmos',
+  'castle','bridge','tower','garden','palace','temple','village'
+];
+
+const TOTAL_WORDS_TO_WIN = 30;
+const MAX_MISS = 3;
+
+const diffConfig = {
+  0: { baseSpeed: 0.7, spawnRate: 2200, maxWords: 6,  speedGain: 0.12 },
+  1: { baseSpeed: 1.2, spawnRate: 1400, maxWords: 10, speedGain: 0.18 },
+  2: { baseSpeed: 2.0, spawnRate: 800,  maxWords: 14, speedGain: 0.25 }
+};
+
+let fallingWords = [];
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let correctCount = 0;
+let missedCount = 0;
+let gameRunning = false;
+let spawnTimer;
+let gameLoop;
+let diffLevel = 1;
+let currentLevel = 1;
+let wordsCleared = 0;
+let currentSpeedMul = 1.0;
+
+function startGame(diff) {
+  diffLevel = diff;
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('game').style.display = 'block';
+  document.getElementById('input-area').style.display = 'flex';
+  document.getElementById('typing').focus();
+
+  currentSpeedMul = 1.0;
+  gameRunning = true;
+  scheduleSpawn();
+  gameLoop = requestAnimationFrame(update);
+  spawnWord();
+}
+
+function scheduleSpawn() {
+  const cfg = diffConfig[diffLevel];
+  const rate = Math.max(500, cfg.spawnRate - (currentLevel - 1) * 200);
+  clearInterval(spawnTimer);
+  spawnTimer = setInterval(spawnWord, rate);
+}
+
+function spawnWord() {
+  if (!gameRunning) return;
+  const cfg = diffConfig[diffLevel];
+  if (fallingWords.length >= cfg.maxWords + Math.floor(currentLevel / 3)) return;
+
+  const pool = Math.random() < 0.7 ? WORDS_KR : WORDS_EN;
+  const word = pool[Math.floor(Math.random() * pool.length)];
+  const gameArea = document.getElementById('game');
+  const el = document.createElement('div');
+  el.className = 'word';
+  el.textContent = word;
+  gameArea.appendChild(el);
+
+  const maxX = gameArea.clientWidth - word.length * 24;
+  const x = Math.random() * Math.max(maxX, 100) + 10;
+
+  el.style.left = x + 'px';
+  el.style.top = '50px';
+
+  const speed = (cfg.baseSpeed + Math.random() * 0.25) * currentSpeedMul;
+  fallingWords.push({ el, text: word, x, y: 50, speed });
+}
+
+function update() {
+  if (!gameRunning) return;
+
+  const gameHeight = document.getElementById('game').clientHeight;
+
+  for (let i = fallingWords.length - 1; i >= 0; i--) {
+    const fw = fallingWords[i];
+    fw.y += fw.speed;
+    fw.el.style.top = fw.y + 'px';
+
+    if (fw.y > gameHeight - 10) {
+      fw.el.remove();
+      fallingWords.splice(i, 1);
+      missedCount++;
+      combo = 0;
+      updateCombo();
+      document.getElementById('miss-display').textContent = missedCount + ' / ' + MAX_MISS;
+
+      if (missedCount >= MAX_MISS) {
+        gameOver(false);
+        return;
+      }
+    }
+  }
+
+  gameLoop = requestAnimationFrame(update);
+}
+
+function checkInput(text) {
+  const input = text.trim();
+  if (!input) return false;
+
+  for (let i = 0; i < fallingWords.length; i++) {
+    if (fallingWords[i].text === input) {
+      const fw = fallingWords[i];
+      fw.el.classList.add('highlight');
+      setTimeout(() => fw.el.remove(), 120);
+      fallingWords.splice(i, 1);
+
+      correctCount++;
+      wordsCleared++;
+      combo++;
+      if (combo > maxCombo) maxCombo = combo;
+
+      const comboBonus = Math.floor(combo / 5) * 10;
+      const posBonus = Math.floor(fw.y / 50);
+      score += 10 + comboBonus + posBonus;
+
+      updateScore();
+      updateCombo();
+      updateProgress();
+      checkLevelUp();
+
+      if (correctCount >= TOTAL_WORDS_TO_WIN) {
+        gameOver(true);
+      }
+      return true;
+    }
+  }
+
+  for (const fw of fallingWords) {
+    if (input && fw.text.startsWith(input)) {
+      fw.el.classList.add('highlight');
+    } else {
+      fw.el.classList.remove('highlight');
+    }
+  }
+  return false;
+}
+
+function updateProgress() {
+  document.getElementById('clear-display').textContent = correctCount + '/' + TOTAL_WORDS_TO_WIN;
+  document.getElementById('progress-bar').style.width = Math.min(100, (correctCount / TOTAL_WORDS_TO_WIN) * 100) + '%';
+}
+
+function checkLevelUp() {
+  const threshold = 5 + currentLevel * 2;
+  if (wordsCleared >= threshold) {
+    currentLevel++;
+    wordsCleared = 0;
+
+    const cfg = diffConfig[diffLevel];
+    currentSpeedMul = 1.0 + (currentLevel - 1) * cfg.speedGain;
+
+    for (const fw of fallingWords) {
+      fw.speed = (cfg.baseSpeed + Math.random() * 0.25) * currentSpeedMul;
+    }
+
+    document.getElementById('level').textContent = currentLevel;
+    document.getElementById('speed-display').textContent = 'x' + currentSpeedMul.toFixed(1);
+    scheduleSpawn();
+
+    const lud = document.getElementById('level-up-display');
+    lud.textContent = 'LEVEL ' + currentLevel + '!';
+    lud.style.opacity = '1';
+    setTimeout(() => lud.style.opacity = '0', 1200);
+  }
+}
+
+function updateScore() {
+  document.getElementById('score').textContent = score;
+}
+
+function updateCombo() {
+  document.getElementById('combo').textContent = combo;
+  const cd = document.getElementById('combo-display');
+  if (combo >= 3) {
+    cd.textContent = combo + ' COMBO!';
+    cd.style.opacity = '1';
+    setTimeout(() => cd.style.opacity = '0', 1000);
+  }
+}
+
+const LOSER_MSGS = [
+  '안타깝지만... 당신은 루저 ㅋㅋㅋ',
+  '이게 최선이었나요...? ㅠㅠ',
+  '손가락이 10개 맞긴 한거죠?',
+  '타자 연습 좀 더 하고 오세요 ㅎ',
+  '키보드가 불쌍해요...',
+];
+
+const LOSER_SUBS = [
+  '고작 {n}개 맞추고 나가떨어지다니 ㅠㅠ',
+  '{n}개... 우리 할머니도 더 잘 치실 듯',
+  '{n}개밖에 못 맞추다니 충격과 공포',
+  '그래도 {n}개나 맞춘 건 대단... 아니 아닌가?',
+];
+
+const WINNER_MSGS = [
+  '당신은 타자왕!',
+  '미쳤다!! 타자의 신이시여!',
+  '완벽한 클리어! 박수!!',
+  '손가락에서 불이 나는군요!',
+];
+
+function gameOver(isWin) {
+  gameRunning = false;
+  clearInterval(spawnTimer);
+  cancelAnimationFrame(gameLoop);
+
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('input-area').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-combo').textContent = maxCombo;
+  document.getElementById('final-correct').textContent = correctCount;
+  document.getElementById('final-missed').textContent = missedCount;
+  document.getElementById('final-level').textContent = currentLevel;
+
+  const title = document.getElementById('gameover-title');
+  const msg = document.getElementById('gameover-msg');
+  const sub = document.getElementById('gameover-sub');
+  const emoji = document.getElementById('result-emoji');
+
+  if (isWin) {
+    title.textContent = 'CLEAR!';
+    title.style.color = '#0f0';
+    emoji.textContent = '\uD83C\uDF89\uD83D\uDC83\uD83C\uDF8A';
+    emoji.classList.remove('shake');
+    msg.textContent = WINNER_MSGS[Math.floor(Math.random() * WINNER_MSGS.length)];
+    msg.style.color = '#0f0';
+    if (diffLevel <= 1) {
+      const nextLv = diffLevel + 1;
+      sub.textContent = '\uD83D\uDCAA \uB300\uB2E8\uD574\uC694! \uADFC\uB370... Lv.' + nextLv + ' \uB3C4\uC804\uD560 \uC6A9\uAE30\uB294 \uC788\uB098\uC694? \uC5B4\uB514 \uD55C\uBC88 \uD574\uBCF4\uC2DC\uC8E0~';
+      sub.style.color = '#ff0';
+    } else {
+      sub.textContent = '\uCD5C\uACE0 \uB09C\uC774\uB3C4 \uD074\uB9AC\uC5B4! \uC9C4\uC815\uD55C \uD0C0\uC790 \uB9C8\uC2A4\uD130!! \uD83D\uDC51';
+      sub.style.color = '#0ff';
+    }
+  } else {
+    title.textContent = 'GAME OVER';
+    title.style.color = '#f44';
+    emoji.textContent = '\uD83D\uDE1D\uD83D\uDC45\uD83D\uDE1D';
+    emoji.classList.add('shake');
+    msg.textContent = LOSER_MSGS[Math.floor(Math.random() * LOSER_MSGS.length)];
+    msg.style.color = '#f44';
+    const subTemplate = LOSER_SUBS[Math.floor(Math.random() * LOSER_SUBS.length)];
+    sub.textContent = subTemplate.replace('{n}', correctCount);
+    sub.style.color = '#888';
+  }
+
+  document.getElementById('gameover-screen').style.display = 'flex';
+}
+
+const typingInput = document.getElementById('typing');
+typingInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    checkInput(typingInput.value);
+    typingInput.value = '';
+    for (const fw of fallingWords) fw.el.classList.remove('highlight');
+  }
+});
+
+typingInput.addEventListener('input', () => {
+  const val = typingInput.value.trim();
+  for (const fw of fallingWords) {
+    if (val && fw.text.startsWith(val)) {
+      fw.el.classList.add('highlight');
+    } else {
+      fw.el.classList.remove('highlight');
+    }
+  }
+});
+</script>
+</body>
+</html>
